@@ -1,0 +1,49 @@
+<!--pages/game/game.wxml-->
+<view class="game-container">
+  <!-- Header HUD -->
+  <view class="hud">
+    <view class="hud-item">{{time}}</view>
+    <view class="hud-item">{{date}}</view>
+    <view class="hud-item">💰 {{money}}</view>
+  </view>
+
+  <!-- Game Canvas -->
+  <canvas 
+    id="gameCanvas" 
+    type="2d"
+    style="width: {{canvasWidth}}px; height: {{canvasHeight}}px;"
+    class="game-canvas"
+  />
+
+  <!-- Tool Bar -->
+  <view class="toolbar">
+    <view 
+      wx:for="{{tools}}" 
+      wx:key="id"
+      class="tool-btn {{selectedTool === item.id ? 'active' : ''}}"
+      bindtap="selectTool"
+      data-tool="{{item.id}}"
+    >
+      <text class="tool-icon">{{item.icon}}</text>
+      <text class="tool-name">{{item.name}}</text>
+    </view>
+  </view>
+
+  <!-- Action Buttons -->
+  <view class="actions">
+    <button class="action-btn" bindtap="onTapInteract">交互</button>
+    <button class="action-btn confirm" bindtap="onTapAction">执行</button>
+  </view>
+
+  <!-- D-Pad -->
+  <view class="dpad">
+    <view class="dpad-row">
+      <view class="dpad-btn" bindtap="onTapMove" data-direction="up">▲</view>
+    </view>
+    <view class="dpad-row">
+      <view class="dpad-btn" bindtap="onTapMove" data-direction="left">◀</view>
+      <view class="dpad-btn" bindtap="onTapMove" data-direction="down">▼</view>
+      <view class="dpad-btn" bindtap="onTapMove" data-direction="right">▶</view>
+    </view>
+  </view>
+</view>

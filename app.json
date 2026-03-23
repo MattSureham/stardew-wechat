@@ -1,0 +1,13 @@
+{
+  "pages": [
+    "pages/game/game"
+  ],
+  "window": {
+    "navigationBarTitleText": "Stardew Farm",
+    "navigationBarBackgroundColor": "#4a7c3f",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#2d4a1c"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}
