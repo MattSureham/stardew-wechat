@@ -1,24 +1,35 @@
 <!--pages/game/game.wxml-->
-<view class="game-container">
-  <!-- Header HUD -->
+<view class="game-container {{isNight ? 'night' : ''}}">
+
+  <!-- ═══ HUD ═══════════════════════════════════════════════════════════════ -->
   <view class="hud">
-    <view class="hud-item">{{time}}</view>
-    <view class="hud-item">{{date}}</view>
-    <view class="hud-item">💰 {{money}}</view>
+    <view class="hud-left">
+      <view class="hud-time">{{time}}</view>
+      <view class="hud-date">{{date}}</view>
+    </view>
+    <view class="hud-right">
+      <view class="hud-money">💰 {{money}}</view>
+      <view class="hud-weather" wx:if="{{isRaining}}">🌧</view>
+    </view>
   </view>
 
-  <!-- Game Canvas -->
-  <canvas 
-    id="gameCanvas" 
+  <!-- Day progress bar -->
+  <view class="day-progress-bar">
+    <view class="day-progress-fill" style="width: {{dayProgress * 100}}%"></view>
+  </view>
+
+  <!-- ═══ Game Canvas ════════════════════════════════════════════════════════ -->
+  <canvas
+    id="gameCanvas"
     type="2d"
     style="width: {{canvasWidth}}px; height: {{canvasHeight}}px;"
     class="game-canvas"
   />
 
-  <!-- Tool Bar -->
+  <!-- ═══ Toolbar ══════════════════════════════════════════════════════════ -->
   <view class="toolbar">
-    <view 
-      wx:for="{{tools}}" 
+    <view
+      wx:for="{{tools}}"
       wx:key="id"
       class="tool-btn {{selectedTool === item.id ? 'active' : ''}}"
       bindtap="selectTool"
@@ -27,23 +38,121 @@
       <text class="tool-icon">{{item.icon}}</text>
       <text class="tool-name">{{item.name}}</text>
     </view>
+
+    <!-- Menu / Inventory button -->
+    <view class="tool-btn menu-btn" bindtap="onTapMenuBtn">
+      <text class="tool-icon">📦</text>
+      <text class="tool-name">背包</text>
+    </view>
   </view>
 
-  <!-- Action Buttons -->
+  <!-- ═══ Action Buttons ════════════════════════════════════════════════════ -->
   <view class="actions">
     <button class="action-btn" bindtap="onTapInteract">交互</button>
     <button class="action-btn confirm" bindtap="onTapAction">执行</button>
+    <button class="action-btn save" bindtap="onTapSave">💾</button>
   </view>
 
-  <!-- D-Pad -->
-  <view class="dpad">
+  <!-- ═══ D-Pad ══════════════════════════════════════════════════════════════ -->
+  <view class="dpad" hover-class="dpad-active">
     <view class="dpad-row">
-      <view class="dpad-btn" bindtap="onTapMove" data-direction="up">▲</view>
+      <view
+        class="dpad-btn"
+        bindtouchstart="onDpadUpStart"
+        bindtouchend="onDpadUpEnd"
+      >▲</view>
     </view>
     <view class="dpad-row">
-      <view class="dpad-btn" bindtap="onTapMove" data-direction="left">◀</view>
-      <view class="dpad-btn" bindtap="onTapMove" data-direction="down">▼</view>
-      <view class="dpad-btn" bindtap="onTapMove" data-direction="right">▶</view>
+      <view
+        class="dpad-btn"
+        bindtouchstart="onDpadLeftStart"
+        bindtouchend="onDpadLeftEnd"
+      >◀</view>
+      <view
+        class="dpad-btn"
+        bindtouchstart="onDpadDownStart"
+        bindtouchend="onDpadDownEnd"
+      >▼</view>
+      <view
+        class="dpad-btn"
+        bindtouchstart="onDpadRightStart"
+        bindtouchend="onDpadRightEnd"
+      >▶</view>
     </view>
   </view>
+
+  <!-- ═══ Inventory Panel (slide-up) ════════════════════════════════════════ -->
+  <view
+    class="inventory-panel {{showInventory ? 'open' : 'closed'}}"
+    wx:if="{{showInventory}}"
+  >
+    <view class="inventory-header">
+      <text class="inventory-title">背包</text>
+      <view class="inventory-close" bindtap="onTapMenuBtn">✕</view>
+    </view>
+
+    <scroll-view class="inventory-list" scroll-y>
+      <view
+        wx:for="{{inventoryItems}}"
+        wx:key="id"
+        class="inventory-item {{item.type}}"
+        bindtap="onTapInventoryItem"
+        data-itemid="{{item.id}}"
+      >
+        <view class="item-info">
+          <text class="item-name">{{item.name}}</text>
+          <text class="item-type">【{{item.type}}】</text>
+        </view>
+        <view class="item-right">
+          <text class="item-qty">×{{item.quantity}}</text>
+          <text class="item-price">{{item.price}}g</text>
+        </view>
+      </view>
+
+      <!-- Empty state -->
+      <view wx:if="{{inventoryItems.length === 0}}" class="inventory-empty">
+        <text>背包空空如也~</text>
+      </view>
+    </scroll-view>
+
+    <view class="inventory-footer">
+      <text class="inventory-hint">点击种子选择播种 | 点击作物出售</text>
+    </view>
+  </view>
+
+  <!-- Inventory backdrop (tap to close) -->
+  <view
+    wx:if="{{showInventory}}"
+    class="inventory-backdrop"
+    bindtap="onTapMenuBtn"
+  ></view>
+
+  <!-- ═══ Dialogue Overlay ══════════════════════════════════════════════════ -->
+  <view
+    class="dialogue-overlay {{showDialogue ? 'visible' : ''}}"
+    wx:if="{{showDialogue}}"
+  >
+    <view class="dialogue-box">
+      <view class="dialogue-npc">{{dialogueNPC}}</view>
+      <text class="dialogue-text">{{dialogueText}}</text>
+
+      <!-- Choices (if any) -->
+      <view wx:if="{{dialogueChoices.length > 0}}" class="dialogue-choices">
+        <view
+          wx:for="{{dialogueChoices}}"
+          wx:key="index"
+          class="dialogue-choice"
+          bindtap="onTapDialogueChoice"
+          data-choice="{{item.action}}"
+        >
+          {{item.text}}
+        </view>
+      </view>
+
+      <view class="dialogue-continue" bindtap="onTapDialogueContinue">
+        <text>▶ 继续</text>
+      </view>
+    </view>
+  </view>
+
 </view>

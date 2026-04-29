@@ -1,4 +1,10 @@
-/* pages/game/game.wxss */
+/* pages/game/game.wxss — Stardew-WeChat styles */
+
+/* ─── Reset / Base ──────────────────────────────────────────────────────── */
+page {
+  background: #1a1a2e;
+  overflow-x: hidden;
+}
 
 .game-container {
   display: flex;
@@ -7,106 +13,454 @@
   background-color: #1a1a2e;
   min-height: 100vh;
   padding: 20rpx;
+  box-sizing: border-box;
+  transition: background-color 1s ease;
 }
 
-/* HUD */
+/* Night mode: darker background */
+.game-container.night {
+  background-color: #0d0d1a;
+}
+
+/* ─── HUD ──────────────────────────────────────────────────────────────── */
 .hud {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   width: 100%;
   max-width: 640rpx;
-  padding: 20rpx;
-  background: rgba(0, 0, 0, 0.5);
-  border-radius: 10rpx;
-  margin-bottom: 20rpx;
+  padding: 16rpx 24rpx;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 12rpx;
+  margin-bottom: 8rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.08);
 }
 
-.hud-item {
-  color: #fff;
+.hud-left, .hud-right {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+}
+
+.hud-time {
+  color: #ffd93d;
+  font-size: 32rpx;
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-date {
+  color: #b0b0b0;
+  font-size: 24rpx;
+}
+
+.hud-money {
+  color: #ffd700;
   font-size: 28rpx;
 }
 
-/* Canvas */
-.game-canvas {
-  border: 4rpx solid #4a7c3f;
-  border-radius: 8rpx;
+.hud-weather {
+  font-size: 28rpx;
+  animation: rainBounce 1s ease-in-out infinite alternate;
 }
 
-/* Toolbar */
+@keyframes rainBounce {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-3px); }
+}
+
+/* ─── Day progress bar ─────────────────────────────────────────────────── */
+.day-progress-bar {
+  width: 100%;
+  max-width: 640rpx;
+  height: 6rpx;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3rpx;
+  margin-bottom: 12rpx;
+  overflow: hidden;
+}
+
+.day-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ffd93d, #ff8c00);
+  border-radius: 3rpx;
+  transition: width 0.5s ease;
+}
+
+/* ─── Canvas ────────────────────────────────────────────────────────────── */
+.game-canvas {
+  border: 3rpx solid #4a7c3f;
+  border-radius: 8rpx;
+  /* Scale to fit viewport width on small screens */
+  max-width: 100%;
+  touch-action: none; /* prevent scroll on Android */
+}
+
+/* ─── Toolbar ──────────────────────────────────────────────────────────── */
 .toolbar {
   display: flex;
-  gap: 20rpx;
-  margin-top: 30rpx;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  justify-content: center;
+  margin-top: 24rpx;
+  max-width: 640rpx;
 }
 
 .tool-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 20rpx 30rpx;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 10rpx;
-  border: 2rpx solid rgba(255, 255, 255, 0.2);
+  justify-content: center;
+  padding: 16rpx 24rpx;
+  min-width: 100rpx;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 12rpx;
+  border: 2rpx solid rgba(255, 255, 255, 0.15);
+  transition: background 0.2s, border-color 0.2s, transform 0.1s;
+}
+
+.tool-btn:active {
+  transform: scale(0.95);
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .tool-btn.active {
-  background: rgba(74, 124, 63, 0.6);
+  background: rgba(74, 124, 63, 0.7);
   border-color: #4a7c3f;
+  box-shadow: 0 0 12rpx rgba(74, 124, 63, 0.5);
 }
 
 .tool-icon {
-  font-size: 40rpx;
+  font-size: 36rpx;
 }
 
 .tool-name {
-  color: #fff;
-  font-size: 24rpx;
-  margin-top: 8rpx;
+  color: #d0d0d0;
+  font-size: 22rpx;
+  margin-top: 6rpx;
+  white-space: nowrap;
 }
 
-/* Actions */
+.menu-btn {
+  background: rgba(80, 60, 20, 0.5);
+  border-color: rgba(200, 160, 60, 0.3);
+}
+
+.menu-btn .tool-name {
+  color: #ffd700;
+}
+
+/* ─── Action buttons ───────────────────────────────────────────────────── */
 .actions {
   display: flex;
-  gap: 30rpx;
-  margin-top: 30rpx;
+  gap: 24rpx;
+  margin-top: 24rpx;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .action-btn {
-  width: 200rpx;
+  width: 160rpx;
   height: 80rpx;
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
-  border-radius: 10rpx;
+  background: rgba(255, 255, 255, 0.15);
+  color: #e0e0e0;
+  border-radius: 12rpx;
   font-size: 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1rpx solid rgba(255, 255, 255, 0.1);
+  line-height: 1;
+  padding: 0;
+}
+
+.action-btn::after {
+  border: none;
+}
+
+.action-btn:active {
+  transform: scale(0.95);
+  opacity: 0.8;
 }
 
 .action-btn.confirm {
   background: #4a7c3f;
+  color: #ffffff;
+  border-color: #5a9c4f;
 }
 
-/* D-Pad */
+.action-btn.save {
+  background: rgba(60, 80, 120, 0.6);
+  color: #aaccff;
+  font-size: 24rpx;
+}
+
+/* ─── D-Pad ─────────────────────────────────────────────────────────────── */
 .dpad {
-  margin-top: 40rpx;
+  margin-top: 36rpx;
+  margin-bottom: 40rpx;
 }
 
 .dpad-row {
   display: flex;
   justify-content: center;
-  gap: 20rpx;
+  gap: 16rpx;
 }
 
 .dpad-btn {
-  width: 100rpx;
-  height: 100rpx;
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 10rpx;
+  width: 110rpx;
+  height: 110rpx;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 16rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: rgba(255, 255, 255, 0.85);
   font-size: 40rpx;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background 0.1s;
 }
 
-.dpad-btn:active {
+.dpad-btn:active, .dpad-active .dpad-btn:active {
   background: rgba(255, 255, 255, 0.3);
+}
+
+/* ─── Inventory Panel ─────────────────────────────────────────────────── */
+.inventory-panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  background: linear-gradient(180deg, #1a1a2e 0%, #12121f 100%);
+  border-top: 2rpx solid rgba(200, 160, 60, 0.4);
+  border-radius: 24rpx 24rpx 0 0;
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  transform: translateY(0);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 -8rpx 32rpx rgba(0, 0, 0, 0.5);
+}
+
+.inventory-panel.closed {
+  transform: translateY(100%);
+}
+
+.inventory-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 199;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.inventory-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24rpx 32rpx 16rpx;
+  border-bottom: 1rpx solid rgba(255, 255, 255, 0.08);
+}
+
+.inventory-title {
+  color: #ffd700;
+  font-size: 34rpx;
+  font-weight: bold;
+}
+
+.inventory-close {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 36rpx;
+  padding: 8rpx 16rpx;
+}
+
+.inventory-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16rpx 24rpx;
+  max-height: 45vh;
+}
+
+.inventory-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20rpx 24rpx;
+  margin-bottom: 12rpx;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 12rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.08);
+  transition: background 0.15s;
+}
+
+.inventory-item:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.inventory-item.seed  { border-left: 4rpx solid #4a7c3f; }
+.inventory-item.crop  { border-left: 4rpx solid #ffd700; }
+.inventory-item.tool  { border-left: 4rpx solid #888; }
+.inventory-item.fish  { border-left: 4rpx solid #4a9fd4; }
+.inventory-item.forage{ border-left: 4rpx solid #e74c3c; }
+
+.item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+
+.item-name {
+  color: #f0f0f0;
+  font-size: 28rpx;
+}
+
+.item-type {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 20rpx;
+  text-transform: uppercase;
+}
+
+.item-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4rpx;
+}
+
+.item-qty {
+  color: #ffd700;
+  font-size: 28rpx;
+  font-weight: bold;
+}
+
+.item-price {
+  color: rgba(255, 215, 0, 0.6);
+  font-size: 22rpx;
+}
+
+.inventory-empty {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 60rpx 0;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 28rpx;
+}
+
+.inventory-footer {
+  padding: 16rpx 32rpx 40rpx;
+  text-align: center;
+}
+
+.inventory-hint {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 22rpx;
+}
+
+/* ─── Dialogue Overlay ─────────────────────────────────────────────────── */
+.dialogue-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 300;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.dialogue-overlay.visible {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.dialogue-box {
+  width: 100%;
+  max-width: 700rpx;
+  background: linear-gradient(180deg, #1e2a3a 0%, #151c26 100%);
+  border: 2rpx solid rgba(200, 160, 60, 0.5);
+  border-bottom: none;
+  border-radius: 24rpx 24rpx 0 0;
+  padding: 32rpx;
+  box-sizing: border-box;
+  min-height: 200rpx;
+}
+
+.dialogue-npc {
+  color: #ffd700;
+  font-size: 26rpx;
+  font-weight: bold;
+  margin-bottom: 16rpx;
+}
+
+.dialogue-text {
+  color: #e8e8e8;
+  font-size: 30rpx;
+  line-height: 1.6;
+  display: block;
+}
+
+.dialogue-choices {
+  margin-top: 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.dialogue-choice {
+  background: rgba(74, 124, 63, 0.4);
+  border: 1rpx solid rgba(74, 124, 63, 0.6);
+  border-radius: 10rpx;
+  padding: 16rpx 24rpx;
+  color: #d0e8d0;
+  font-size: 28rpx;
+}
+
+.dialogue-continue {
+  margin-top: 24rpx;
+  text-align: right;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 26rpx;
+}
+
+/* ─── Responsive tweaks ─────────────────────────────────────────────────── */
+@media (screenWidth < 375px) {
+  /* Small phones: reduce padding, smaller toolbar items */
+  .tool-btn {
+    padding: 12rpx 16rpx;
+    min-width: 80rpx;
+  }
+
+  .dpad-btn {
+    width: 90rpx;
+    height: 90rpx;
+  }
+
+  .action-btn {
+    width: 130rpx;
+    height: 70rpx;
+    font-size: 26rpx;
+  }
+}
+
+@media (screenWidth >= 768px) {
+  /* Tablets: larger canvas, more spacing */
+  .game-canvas {
+    border-width: 4rpx;
+  }
+
+  .dpad-btn {
+    width: 130rpx;
+    height: 130rpx;
+    font-size: 48rpx;
+  }
 }

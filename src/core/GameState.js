@@ -5,7 +5,7 @@
 
 const { TileMap, TILE_TYPES } = require('./TileMap');
 const { TimeSystem } = require('./TimeSystem');
-const { Inventory } = require('./Inventory');
+const { Inventory } = require('../systems/Inventory');
 
 class GameState {
   constructor() {
