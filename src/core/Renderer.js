@@ -273,22 +273,28 @@ function drawPlayer(ctx, playerX, playerY, facing) {
  * Pre-computes 40 raindrop positions once at construction time,
  * then animates them downward over time (no per-frame jitter).
  */
-function _createRaindrops() {
-  // Mulberry32 seeded PRNG — deterministic, no Math.random() at runtime
-  let seed = 0xdeadbeef;
-  const rng = () => {
-    seed |= 0;
-    seed = (seed + 0x6D2B79F5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+function _createRaindrops(rng) {
   return Array.from({ length: 40 }, () => ({
     x: rng() * MAP_WIDTH * TILE_SIZE,
     // Stagger Y across the full height so drops don't all start at top
     y: rng() * MAP_HEIGHT * TILE_SIZE,
     speed: 0.8 + rng() * 0.4  // slight speed variation per drop
   }));
+}
+
+/**
+ * B8 FIX: Creates a Mulberry32 seeded PRNG bound to a fixed seed.
+ * Returns a function that produces deterministic [0,1) values.
+ */
+function _createRainRng(seed = 0xdeadbeef) {
+  return () => {
+    let s = seed;
+    s |= 0;
+    s = (s + 0x6D2B79F5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 /**
@@ -323,7 +329,9 @@ class Renderer {
     this._seasonPalette = SEASON_GROUND.Spring;
 
     // B8 FIX: pre-seeded raindrops — positions stable across frames
-    this._raindrops = _createRaindrops();
+    // Store the RNG so wrap repositioning stays deterministic too
+    this._rainRng = _createRainRng();
+    this._raindrops = _createRaindrops(this._rainRng);
     // Accumulated rain animation time (seconds) so drops fall smoothly
     this._rainTime = 0;
 
@@ -388,9 +396,9 @@ class Renderer {
       for (const drop of this._raindrops) {
         drop.y += drop.speed;
         if (drop.y > MAP_HEIGHT * TILE_SIZE) {
-          // Wrap to top with a random horizontal position
+          // Wrap to top — use stored seeded RNG so position stays deterministic
           drop.y = -6;
-          drop.x = Math.random() * MAP_WIDTH * TILE_SIZE;
+          drop.x = this._rainRng() * MAP_WIDTH * TILE_SIZE;
         }
       }
       drawRain(ctx, hour, this._raindrops);

@@ -263,13 +263,9 @@ Page({
   _syncHUD() {
     if (!this.game) return;
 
-    const time     = this.game.timeSystem.getTimeString();
-    const date     = this.game.timeSystem.getDateString();
-    const money    = this.game.inventory.getMoney();
-    const progress = this.game.timeSystem.dayProgress;
-    const isRaining = this.game.timeSystem.isRaining;
-    const hour     = this.game.timeSystem.hour;
-    const isNight  = hour >= NIGHT_START_HOUR || hour < DAY_START_HOUR;
+    const rd = this.game.getRenderData();
+    const { time, date, money, progress, isRaining, hour } = rd;
+    const isNight = hour >= NIGHT_START_HOUR || hour < DAY_START_HOUR;
 
     const changed = {};
     if (time     !== this._lastHUD.time)     changed.time     = time;

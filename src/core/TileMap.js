@@ -212,14 +212,14 @@ class TileMap {
       for (let x = 0; x < this.width; x++) {
         const tile = this.tiles[y][x];
 
-        // Rain waters all crops
-        if (isRaining && tile.type === TILE_TYPES.TILLED) {
+        // Rain waters all tilled and already-watered tiles
+        if (isRaining && (tile.type === TILE_TYPES.TILLED || tile.type === TILE_TYPES.WATERED)) {
           tile.type = TILE_TYPES.WATERED;
           tile.hydration = MAX_HYDRATION;
           continue;
         }
 
-        // Dry out: watered → tilled
+        // Dry out: watered → tilled (only when not raining)
         if (tile.type === TILE_TYPES.WATERED) {
           tile.type = TILE_TYPES.TILLED;
         }
