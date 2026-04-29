@@ -1,15 +1,10 @@
 /**
  * pages/game/game.js — Stardew-WeChat game page
  *
- * Changes from original:
- * - Uses src/core/Renderer.js for all canvas drawing
- * - Uses src/utils/InputManager.js for touch/swipe/long-pressive controls
- * - Fixed global requestAnimationFrame() → canvas.requestAnimationFrame()
- * - DPR scaling corrected: set physical px, scale ctx once, use logical coords
- * - setData() only called when HUD values actually change (throttled)
- * - Inventory panel toggleable via menu button
- * - Save/load hooks wired to lifecycle (onHide/onShow)
- * - EventBus integration for dialogue/shop/event popups
+ * Phase 1 fixes:
+ * - Save/load preserves listener chain & EventBus (B2/B4 fix)
+ * - Removed duplicate D-pad handlers (B10 fix)
+ * - Listener binding extracted into _bindGameListeners() for re-use
  */
 
 const { GameState } = require('../../src/core/GameState');
@@ -41,7 +36,7 @@ Page({
     // Inventory panel
     showInventory: false,
     inventoryItems: [],   // [{ id, name, type, price, quantity }]
-    inventoryTotal: 0,    // total gold from selling selected item
+    inventoryTotal: 0,
 
     // Event/dialogue overlay
     showDialogue:  false,
@@ -51,7 +46,7 @@ Page({
 
     // Save slot UI
     showSaveSlots: false,
-    saveSlots: [],         // [{ key, exists, date }]
+    saveSlots: [],
 
     // Weather
     isRaining: false,
@@ -66,16 +61,14 @@ Page({
     this._initGame();
     this._initRenderer();
     this._initInput();
-    this._initEventBus();
+    // EventBus listeners are bound inside _initGame after game is fully ready
   },
 
   onShow() {
-    // Restore game on app resume
     if (this.game) this.game.start();
   },
 
   onHide() {
-    // Auto-save when app backgrounds
     if (this.game) {
       this.game.stop();
       this._autoSave();
@@ -92,7 +85,6 @@ Page({
       const saved = wx.getStorageSync('stardew_autosave');
       if (saved) {
         const loaded = GameState.deserialize(saved);
-        // Transfer loaded state into the instance
         Object.assign(this.game, loaded);
       }
     } catch (e) {
@@ -101,21 +93,46 @@ Page({
 
     this.game.start();
 
-    // Seed default tools into inventory if empty
+    // Seed default tools if inventory is empty
     if (!this.game.inventory.getQuantity('hoe') && !this.game.inventory.getQuantity('watering_can')) {
       this.game.inventory.addItem('hoe', 1);
       this.game.inventory.addItem('watering_can', 1);
     }
 
-    // Sync initial HUD
+    // Register persistent listeners (HUD sync, EventBus) — called exactly once
+    this._bindGameListeners();
     this._syncHUD();
+  },
 
-    // Listen for time updates to update HUD
+  /**
+   * B2/B4 FIX: Apply a deserialized save and re-bind all listeners.
+   * Object.assign loses the timeSystem's external listeners and the EventBus
+   * — _bindGameListeners restores them.
+   * Used by onTapLoad (manual load), not by _initGame.
+   */
+  _applyLoadedSave(saved) {
+    const loaded = GameState.deserialize(saved);
+    Object.assign(this.game, loaded);
+    // Re-bind all external listeners — timeSystem and EventBus are new objects now
+    this._bindGameListeners();
+  },
+
+  /**
+   * Bind persistent listeners that need to survive save/load cycles.
+   * Called during init AND after any load operation.
+   */
+  _bindGameListeners() {
+    if (!this.game) return;
+
+    // HUD time-sync listener
     this.game.timeSystem.addListener((payload) => {
       if (payload.event === 'timeUpdate') {
         this._syncHUD();
       }
     });
+
+    // EventBus: dialogue, shop, events
+    this._initEventBus();
   },
 
   _initRenderer() {
@@ -134,18 +151,21 @@ Page({
         const logW   = res.width;
         const logH   = res.height;
 
-        // Create renderer and apply DPR correction
         this.renderer = new Renderer(canvas, ctx);
         this.renderer.setupDPR(dpr, logW, logH);
 
         // Initial render
         this.renderer.render(this.game);
 
-        // Start render loop on the canvas node (NOT the global)
         this._startRenderLoop();
       });
   },
 
+  /**
+   * B10 FIX: Removed duplicate D-pad handler loop from _initInput.
+   * The D-pad handlers are statically defined below (onDpadUpStart, etc.)
+   * and are not duplicated here.
+   */
   _initInput() {
     this.input = new InputManager(this);
 
@@ -153,7 +173,6 @@ Page({
       if (!this.game) return;
       const moved = this.game.movePlayer(dx, dy);
       if (!moved) {
-        // Bump into wall — small shake feedback
         if (this.renderer) this.renderer.shake(3, 100);
       }
     };
@@ -179,42 +198,38 @@ Page({
       this.game.setAction(toolId);
       this.setData({ selectedTool: toolId });
     };
-
-    // D-pad long-press binding for each direction
-    const dirMap = ['up', 'down', 'left', 'right'];
-    for (const dir of dirMap) {
-      const key = `onDpad${dir.charAt(0).toUpperCase() + dir.slice(1)}Start`;
-      this[key] = () => this.input && this.input._dpadStart(dir);
-      const keyEnd = `onDpad${dir.charAt(0).toUpperCase() + dir.slice(1)}End`;
-      this[keyEnd] = () => this.input && this.input._dpadEnd(dir);
-    }
   },
 
   _initEventBus() {
-    // Listen for events emitted by NPC/Shop/Event systems
-    // These will be registered when DeepSeek's systems are integrated
-    const bus = this.game.eventBus;
-    if (bus) {
-      bus.on('dialogue', (data) => {
-        this.setData({
-          showDialogue: true,
-          dialogueText: data.text || '',
-          dialogueNPC:  data.npcId || ''
-        });
-      });
+    const bus = this.game && this.game.eventBus;
+    if (!bus) return;
 
-      bus.on('shop-open', () => {
-        // TODO: integrate with DeepSeek's shop UI
-        wx.showToast({ title: '商店 - 待集成', icon: 'none' });
-      });
+    // Clear previous listeners to prevent duplicates after load
+    bus.clear();
 
-      bus.on('event-triggered', (data) => {
-        wx.showToast({ title: data.description || '事件触发', icon: 'none' });
+    bus.on('dialogue', (data) => {
+      this.setData({
+        showDialogue: true,
+        dialogueText: data.text || '',
+        dialogueNPC:  data.npcId || ''
       });
-    }
+    });
+
+    bus.on('shop-open', () => {
+      // Shop UI integration point for DeepSeek's ShopSystem
+      wx.showToast({ title: '商店 - 待集成', icon: 'none' });
+    });
+
+    bus.on('event-triggered', (data) => {
+      wx.showToast({ title: data.description || '事件触发', icon: 'none' });
+    });
+
+    bus.on('forage-collected', (data) => {
+      wx.showToast({ title: `采集了 ${data.itemId || '物品'}！`, icon: 'none' });
+    });
   },
 
-  // ─── Render loop (on canvas node, not global) ─────────────────────────────
+  // ─── Render loop ──────────────────────────────────────────────────────────
 
   _startRenderLoop() {
     if (!this.renderer) return;
@@ -222,17 +237,16 @@ Page({
     const loop = () => {
       if (!this.game || !this.renderer) return;
 
-      this.game.update();        // advance game time
+      this.game.update();
       this.renderer.render(this.game);
 
-      // Schedule next frame — on the CANVAS node, not window
-      this.canvas.requestAnimationFrame(loop);
+      if (this.canvas) {
+        this.canvas.requestAnimationFrame(loop);
+      }
     };
 
-    // Store reference so onUnload can cancel
     this._renderLoopRef = loop;
 
-    // Get canvas node reference for rAF
     const query = wx.createSelectorQuery();
     query.select('#gameCanvas').fields({ node: true }).exec(([res]) => {
       if (res && res.node) {
@@ -242,7 +256,7 @@ Page({
     });
   },
 
-  // ─── HUD sync (throttled setData) ─────────────────────────────────────────
+  // ─── HUD sync ────────────────────────────────────────────────────────────
 
   _lastHUD = {};
 
@@ -271,7 +285,7 @@ Page({
     }
   },
 
-  // ─── Inventory ─────────────────────────────────────────────────────────────
+  // ─── Inventory ────────────────────────────────────────────────────────────
 
   _toggleInventory() {
     const show = !this.data.showInventory;
@@ -294,15 +308,13 @@ Page({
 
     if (!def) return;
 
-    // If it's a seed, select it for planting
     if (def.type === 'seed') {
       inv.selectItem(itemid);
       this.game.setAction('plant');
       this.setData({ selectedTool: 'plant' });
       wx.showToast({ title: `已选择: ${def.name}`, icon: 'none' });
     } else if (def.type === 'crop') {
-      // Show sell option
-      const sellPrice = Math.floor(def.price); // crops sell at full price
+      const sellPrice = Math.floor(def.price);
       wx.showModal({
         title: `出售 ${def.name}`,
         content: `当前价格: ${sellPrice}g /个\n持有: ${inv.getQuantity(itemid)}`,
@@ -327,10 +339,11 @@ Page({
     this._toggleInventory();
   },
 
-  // ─── Controls (D-pad) ─────────────────────────────────────────────────────
+  // ─── D-Pad (statically defined — used by WXML bindtouchstart/bindtouchend) ──
+  // B10 FIX: These are the ONLY D-pad handlers; the duplicate loop in old
+  // _initInput was removed. InputManager._bindDpadButtons is dead code (B9).
 
   onTapMove(e) {
-    // Fallback for touch-dpad without long-press simulation
     const { direction } = e.currentTarget.dataset;
     if (!this.game || !direction) return;
 
@@ -340,7 +353,6 @@ Page({
     if (!moved && this.renderer) this.renderer.shake(3, 100);
   },
 
-  // D-pad long-press start (set from WXML via component call)
   onDpadUpStart()    { this.input && this.input._dpadStart('up'); },
   onDpadDownStart()  { this.input && this.input._dpadStart('down'); },
   onDpadLeftStart()  { this.input && this.input._dpadStart('left'); },
@@ -371,11 +383,10 @@ Page({
     this.setData({ selectedTool: tool });
   },
 
-  // ─── Dialogue ──────────────────────────────────────────────────────────────
+  // ─── Dialogue ─────────────────────────────────────────────────────────────
 
   onTapDialogueContinue() {
     this.setData({ showDialogue: false, dialogueChoices: [] });
-    // Emit continue event to NPC system
     if (this.game && this.game.eventBus) {
       this.game.eventBus.emit('dialogue-continue', {});
     }
@@ -406,6 +417,9 @@ Page({
     wx.showToast({ title: '已保存', icon: 'success' });
   },
 
+  /**
+   * B2/B4 FIX: Manually load uses _applyLoadedSave to re-bind listeners.
+   */
   onTapLoad() {
     try {
       const saved = wx.getStorageSync('stardew_autosave');
@@ -413,8 +427,7 @@ Page({
         wx.showToast({ title: '无存档', icon: 'none' });
         return;
       }
-      const loaded = GameState.deserialize(saved);
-      Object.assign(this.game, loaded);
+      this._applyLoadedSave(saved);
       this._syncHUD();
       this._syncInventory();
       wx.showToast({ title: '已加载', icon: 'success' });

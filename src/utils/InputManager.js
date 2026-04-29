@@ -57,9 +57,6 @@ class InputManager {
     page.onTouchEnd      = (e) => this._handleTouchEnd(e);
     page.onTouchCancel   = (e) => this._handleTouchEnd(e);
 
-    // Also attach D-pad button handlers
-    this._bindDpadButtons();
-
     // Attach tool selection handler
     this._bindToolBar();
   }
@@ -160,15 +157,9 @@ class InputManager {
   }
 
   // ─── D-pad long-press ─────────────────────────────────────────────────────
-
-  _bindDpadButtons() {
-    const directions = ['up', 'down', 'left', 'right'];
-    for (const dir of directions) {
-      // WeChat uses bindtap for click, no built-in "hold" — we simulate with timers
-      this.page[`_dpad_${dir}_start`] = () => this._dpadStart(dir);
-      this.page[`_dpad_${dir}_end`]   = () => this._dpadEnd(dir);
-    }
-  }
+  // B9 FIX: Removed dead _bindDpadButtons() — it created _dpad_*_start/_end
+  // properties that were never referenced. The WXML uses game.js's
+  // onDpadUpStart etc., which call _dpadStart/_dpadEnd directly.
 
   _dpadStart(direction) {
     if (!this.onMove) return;

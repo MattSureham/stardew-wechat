@@ -53,7 +53,7 @@ const NPC_SPRITES = {
  * @param {number} hour - Game hour (0-23)
  * @param {boolean} isRaining
  */
-function getDayNightOverlay(hour, isRaining) {
+function _getDayNightOverlay(hour, isRaining) {
   if (isRaining) {
     // Rainy: blue-grey overlay that persists through day/night
     return 'rgba(30, 60, 90, 0.25)';
@@ -224,7 +224,7 @@ function drawNPC(ctx, npc) {
 
 // ─── Player rendering ─────────────────────────────────────────────────────────
 
-function drawPlayer(ctx, playerX, playerY) {
+function drawPlayer(ctx, playerX, playerY, facing) {
   const px = playerX * TILE_SIZE;
   const py = playerY * TILE_SIZE;
 
@@ -245,17 +245,64 @@ function drawPlayer(ctx, playerX, playerY) {
   // Hair (brown)
   ctx.fillStyle = '#8B4513';
   ctx.fillRect(px + 7, py + 2, TILE_SIZE - 14, 5);
+
+  // Facing direction indicator (small triangle pointing in facing direction)
+  // B7: Visual feedback for player facing direction
+  if (facing && (facing.dx !== 0 || facing.dy !== 0)) {
+    const cx = px + TILE_SIZE / 2;
+    const cy = py + TILE_SIZE / 2;
+    const tipX = cx + facing.dx * 10;
+    const tipY = cy + facing.dy * 10;
+    const perpX = -facing.dy * 4;
+    const perpY = facing.dx * 4;
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.beginPath();
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(cx + perpX, cy + perpY);
+    ctx.lineTo(cx - perpX, cy - perpY);
+    ctx.closePath();
+    ctx.fill();
+  }
 }
 
-// ─── Rain rendering ───────────────────────────────────────────────────────────
+// ─── Raindrop helpers ──────────────────────────────────────────────────────────
 
-function drawRain(ctx, hour) {
-  if (hour >= NIGHT_START_HOUR || hour < DAY_START_HOUR) return; // skip at night
+/**
+ * B8 FIX: Seeded PRNG so raindrop positions are deterministic.
+ * Pre-computes 40 raindrop positions once at construction time,
+ * then animates them downward over time (no per-frame jitter).
+ */
+function _createRaindrops() {
+  // Mulberry32 seeded PRNG — deterministic, no Math.random() at runtime
+  let seed = 0xdeadbeef;
+  const rng = () => {
+    seed |= 0;
+    seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  return Array.from({ length: 40 }, () => ({
+    x: rng() * MAP_WIDTH * TILE_SIZE,
+    // Stagger Y across the full height so drops don't all start at top
+    y: rng() * MAP_HEIGHT * TILE_SIZE,
+    speed: 0.8 + rng() * 0.4  // slight speed variation per drop
+  }));
+}
+
+/**
+ * B8 FIX: Rain renders from pre-computed positions (stable across frames),
+ * each drop falls at its own speed. Resets to top when it exits the canvas.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} hour
+ * @param {Array} raindrops - pre-computed [{x, y, speed}] array
+ */
+function drawRain(ctx, hour, raindrops) {
+  if (hour >= NIGHT_START_HOUR || hour < DAY_START_HOUR) return;
   ctx.fillStyle = 'rgba(150, 200, 255, 0.6)';
-  for (let i = 0; i < 40; i++) {
-    const rx = Math.random() * MAP_WIDTH * TILE_SIZE;
-    const ry = Math.random() * MAP_HEIGHT * TILE_SIZE;
-    ctx.fillRect(rx, ry, 1, 6);
+  for (const drop of raindrops) {
+    ctx.fillRect(drop.x, drop.y, 1, 6);
   }
 }
 
@@ -274,6 +321,11 @@ class Renderer {
 
     // Precompute season palette cache
     this._seasonPalette = SEASON_GROUND.Spring;
+
+    // B8 FIX: pre-seeded raindrops — positions stable across frames
+    this._raindrops = _createRaindrops();
+    // Accumulated rain animation time (seconds) so drops fall smoothly
+    this._rainTime = 0;
 
     // Last rendered state for dirty-checking (not strictly needed with rAF
     // but useful if we move to conditional render-on-change)
@@ -300,12 +352,18 @@ class Renderer {
 
   /**
    * Main render entry point. Call every rAF tick.
+   *
+   * B11 FIX: Reads time/weather/season from getRenderData() instead of
+   * reaching into gameState.timeSystem internals directly.
+   * NPCs are also drawn from render data rather than gameState.npcSystem.
+   * B8 FIX: Rain drops animate smoothly using pre-seeded positions.
+   *
    * @param {object} gameState - GameState instance
    */
   render(gameState) {
     const ctx  = this.ctx;
-    const { tiles, playerX, playerY } = gameState.getRenderData();
-    const { seasonIndex, hour, isRaining } = gameState.timeSystem;
+    const rd = gameState.getRenderData();
+    const { tiles, playerX, playerY, seasonIndex, hour, isRaining, npcs } = rd;
 
     // Update season palette if changed
     const seasonName = SEASONS[seasonIndex] || 'Spring';
@@ -325,21 +383,34 @@ class Renderer {
 
     // ── Layer 1: Rain (before player so rain appears behind) ────────────────
     if (isRaining) {
-      drawRain(ctx, hour);
+      // B8 FIX: advance raindrop positions before drawing
+      this._rainTime += 0.016; // ~60fps assumed
+      for (const drop of this._raindrops) {
+        drop.y += drop.speed;
+        if (drop.y > MAP_HEIGHT * TILE_SIZE) {
+          // Wrap to top with a random horizontal position
+          drop.y = -6;
+          drop.x = Math.random() * MAP_WIDTH * TILE_SIZE;
+        }
+      }
+      drawRain(ctx, hour, this._raindrops);
+    } else {
+      // Reset rain time when rain stops so drops restart fresh next time
+      this._rainTime = 0;
     }
 
     // ── Layer 2: NPCs ──────────────────────────────────────────────────────
-    if (gameState.npcSystem && gameState.npcSystem.npcs) {
-      for (const npc of Object.values(gameState.npcSystem.npcs)) {
+    if (npcs && npcs.length > 0) {
+      for (const npc of npcs) {
         drawNPC(ctx, npc);
       }
     }
 
     // ── Layer 3: Player ────────────────────────────────────────────────────
-    drawPlayer(ctx, playerX, playerY);
+    drawPlayer(ctx, playerX, playerY, rd.facing);
 
     // ── Layer 4: Day/night overlay ─────────────────────────────────────────
-    const overlay = getDayNightOverlay(hour, isRaining);
+    const overlay = _getDayNightOverlay(hour, isRaining);
     if (overlay) {
       ctx.fillStyle = overlay;
       ctx.fillRect(0, 0, this.width, this.height);
@@ -384,4 +455,4 @@ class Renderer {
   }
 }
 
-module.exports = { Renderer, getDayNightOverlay, CROP_COLORS, NPC_SPRITES };
+module.exports = { Renderer, CROP_COLORS, NPC_SPRITES };
